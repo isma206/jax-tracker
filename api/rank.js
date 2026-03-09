@@ -1,3 +1,6 @@
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_KEY = process.env.SUPABASE_KEY;
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
 
@@ -9,6 +12,7 @@ export default async function handler(req, res) {
   const championId = 24;
 
   try {
+    // 1. Riot API
     const accountRes = await fetch(
       `https://${regionV5}.api.riotgames.com/riot/account/v1/accounts/by-riot-id/${encodeURIComponent(gameName)}/${encodeURIComponent(tagLine)}?api_key=${apiKey}`
     );
@@ -27,6 +31,7 @@ export default async function handler(req, res) {
     const mastery = masteryRes.ok ? await masteryRes.json() : null;
     const soloQueue = ranked.find(q => q.queueType === 'RANKED_SOLO_5x5') || null;
 
+    // 2. Scraping League of Graphs
     let euwRank = null;
     let worldRank = null;
     try {
@@ -40,8 +45,6 @@ export default async function handler(req, res) {
       });
       if (logRes.ok) {
         const html = await logRes.text();
-
-        // Trouve tous les blocs solo-number avec contexte
         const blockRegex = /solo-number">\s*#([\d,]+)\s*<\/div>[\s\S]{0,600}?<div class="title">\s*([\s\S]{0,80}?)\s*<\/div>/g;
         let match;
         while ((match = blockRegex.exec(html)) !== null) {
@@ -53,7 +56,54 @@ export default async function handler(req, res) {
       }
     } catch(e) {}
 
-    res.status(200).json({ soloQueue, mastery, euwRank, worldRank });
+    // 3. Sauvegarde dans Supabase (une seule fois par jour)
+    if (SUPABASE_URL && SUPABASE_KEY && soloQueue) {
+      try {
+        // Vérifie si on a déjà enregistré aujourd'hui
+        const today = new Date().toISOString().slice(0, 10);
+        const checkRes = await fetch(
+          `${SUPABASE_URL}/rest/v1/rank_history?recorded_at=gte.${today}T00:00:00Z&select=id&limit=1`,
+          { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } }
+        );
+        const existing = await checkRes.json();
+
+        if (!existing || existing.length === 0) {
+          await fetch(`${SUPABASE_URL}/rest/v1/rank_history`, {
+            method: 'POST',
+            headers: {
+              'apikey': SUPABASE_KEY,
+              'Authorization': `Bearer ${SUPABASE_KEY}`,
+              'Content-Type': 'application/json',
+              'Prefer': 'return=minimal'
+            },
+            body: JSON.stringify({
+              euw_rank: euwRank ? parseInt(euwRank) : null,
+              world_rank: worldRank ? parseInt(worldRank) : null,
+              tier: soloQueue.tier,
+              division: soloQueue.rank,
+              lp: soloQueue.leaguePoints,
+              wins: soloQueue.wins,
+              losses: soloQueue.losses
+            })
+          });
+        }
+      } catch(e) {}
+    }
+
+    // 4. Récupère l'historique des 30 derniers jours
+    let history = [];
+    if (SUPABASE_URL && SUPABASE_KEY) {
+      try {
+        const histRes = await fetch(
+          `${SUPABASE_URL}/rest/v1/rank_history?select=recorded_at,euw_rank,world_rank,tier,lp&order=recorded_at.asc&limit=30`,
+          { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } }
+        );
+        history = await histRes.json();
+      } catch(e) {}
+    }
+
+    res.status(200).json({ soloQueue, mastery, euwRank, worldRank, history });
+
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
