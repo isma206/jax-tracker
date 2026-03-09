@@ -1,7 +1,6 @@
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
 
-  // Mode debug : affiche les 2000 premiers caractères du HTML reçu
   if (req.query.debug === '1') {
     try {
       const logUrl = `https://www.leagueofgraphs.com/fr/summoner/champions/jax/euw/3afrit+jax-filou/soloqueue`;
@@ -13,10 +12,17 @@ export default async function handler(req, res) {
         }
       });
       const html = await logRes.text();
-      // Cherche le mot "solo-number" pour voir si la classe est présente
-      const idx = html.indexOf('solo-number');
-      const snippet = idx >= 0 ? html.slice(Math.max(0, idx - 100), idx + 500) : html.slice(0, 2000);
-      return res.status(200).json({ status: logRes.status, found: idx >= 0, snippet });
+
+      // Trouve tous les blocs solo-number avec 800 chars de contexte après
+      const results = [];
+      let searchFrom = 0;
+      while (true) {
+        const idx = html.indexOf('solo-number', searchFrom);
+        if (idx === -1) break;
+        results.push(html.slice(idx, idx + 800));
+        searchFrom = idx + 1;
+      }
+      return res.status(200).json({ count: results.length, blocks: results });
     } catch(e) {
       return res.status(200).json({ error: e.message });
     }
@@ -73,7 +79,6 @@ export default async function handler(req, res) {
     } catch(e) {}
 
     res.status(200).json({ soloQueue, mastery, euwRank, worldRank });
-
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
