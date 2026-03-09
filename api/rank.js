@@ -9,6 +9,7 @@ export default async function handler(req, res) {
   const championId = 24;
 
   try {
+    // 1. Riot API — rang, LP, wins, losses, mastery
     const accountRes = await fetch(
       `https://${regionV5}.api.riotgames.com/riot/account/v1/accounts/by-riot-id/${encodeURIComponent(gameName)}/${encodeURIComponent(tagLine)}?api_key=${apiKey}`
     );
@@ -25,10 +26,48 @@ export default async function handler(req, res) {
       `https://${region}.api.riotgames.com/lol/champion-mastery/v4/champion-masteries/by-puuid/${account.puuid}/by-champion/${championId}?api_key=${apiKey}`
     );
     const mastery = masteryRes.ok ? await masteryRes.json() : null;
-
     const soloQueue = ranked.find(q => q.queueType === 'RANKED_SOLO_5x5') || null;
 
-    res.status(200).json({ soloQueue, mastery });
+    // 2. Scraping League of Graphs — classement européen sur Jax
+    let euwRank = null;
+    try {
+      const logUrl = `https://www.leagueofgraphs.com/fr/summoner/champions/jax/euw/3afrit+jax-filou/soloqueue`;
+      const logRes = await fetch(logUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept-Language': 'fr-FR,fr;q=0.9',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        }
+      });
+
+      if (logRes.ok) {
+        const html = await logRes.text();
+
+        // Cherche le classement "#XXX" dans le HTML
+        // League of Graphs affiche le rang sous forme (#432) ou #432
+        const rankMatch = html.match(/#([\d,]+)\s*(?:sur|\/|on)?\s*EUW/i) ||
+                          html.match(/rank[^"]*?(\d[\d,]*)[^"]*?euw/i) ||
+                          html.match(/classement[^<]*?#\s*([\d,]+)/i) ||
+                          html.match(/\(#([\d,]+)\)/);
+
+        if (rankMatch) {
+          euwRank = rankMatch[1].replace(/,/g, '');
+        }
+
+        // Cherche aussi le pattern "Rang : #XXX" ou similaire
+        if (!euwRank) {
+          const rankMatch2 = html.match(/>#\s*([\d\s,]+)</);
+          if (rankMatch2) {
+            euwRank = rankMatch2[1].replace(/[\s,]/g, '');
+          }
+        }
+      }
+    } catch(scrapeErr) {
+      // Le scraping échoue silencieusement, on affiche quand même le reste
+      euwRank = null;
+    }
+
+    res.status(200).json({ soloQueue, mastery, euwRank });
 
   } catch (e) {
     res.status(500).json({ error: e.message });
