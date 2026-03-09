@@ -15,14 +15,8 @@ export default async function handler(req, res) {
     if (!accountRes.ok) throw new Error(`Account error ${accountRes.status}`);
     const account = await accountRes.json();
 
-    const summonerRes = await fetch(
-      `https://${region}.api.riotgames.com/lol/summoner/v4/summoners/by-puuid/${account.puuid}?api_key=${apiKey}`
-    );
-    if (!summonerRes.ok) throw new Error(`Summoner error ${summonerRes.status}`);
-    const summoner = await summonerRes.json();
-
     const rankedRes = await fetch(
-      `https://${region}.api.riotgames.com/lol/league/v4/entries/by-summoner/${summoner.id}?api_key=${apiKey}`
+      `https://${region}.api.riotgames.com/lol/league/v4/entries/by-puuid/${account.puuid}?api_key=${apiKey}`
     );
     if (!rankedRes.ok) throw new Error(`Ranked error ${rankedRes.status}`);
     const ranked = await rankedRes.json();
