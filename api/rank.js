@@ -1,33 +1,6 @@
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
 
-  if (req.query.debug === '1') {
-    try {
-      const logUrl = `https://www.leagueofgraphs.com/fr/summoner/champions/jax/euw/3afrit+jax-filou/soloqueue`;
-      const logRes = await fetch(logUrl, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-          'Accept-Language': 'fr-FR,fr;q=0.9',
-        }
-      });
-      const html = await logRes.text();
-
-      // Trouve tous les blocs solo-number avec 800 chars de contexte après
-      const results = [];
-      let searchFrom = 0;
-      while (true) {
-        const idx = html.indexOf('solo-number', searchFrom);
-        if (idx === -1) break;
-        results.push(html.slice(idx, idx + 800));
-        searchFrom = idx + 1;
-      }
-      return res.status(200).json({ count: results.length, blocks: results });
-    } catch(e) {
-      return res.status(200).json({ error: e.message });
-    }
-  }
-
   const apiKey = process.env.RIOT_API_KEY;
   const gameName = '3afrit jax';
   const tagLine = 'filou';
@@ -67,13 +40,15 @@ export default async function handler(req, res) {
       });
       if (logRes.ok) {
         const html = await logRes.text();
-        const blockRegex = /class="number-medium solo-number"[\s\S]{0,20}?#([\d,]+)[\s\S]{0,500}?<div class="title">([\s\S]{0,100}?)<\/div>/g;
+
+        // Trouve tous les blocs solo-number avec contexte
+        const blockRegex = /solo-number">\s*#([\d,]+)\s*<\/div>[\s\S]{0,600}?<div class="title">\s*([\s\S]{0,80}?)\s*<\/div>/g;
         let match;
         while ((match = blockRegex.exec(html)) !== null) {
           const number = match[1].replace(/,/g, '');
           const label = match[2].trim();
-          if (label.includes('EUW')) euwRank = number;
-          if (label.includes('Mondial') || label.includes('World')) worldRank = number;
+          if (label === 'Rang (EUW)') euwRank = number;
+          else if (label === 'Rang') worldRank = number;
         }
       }
     } catch(e) {}
