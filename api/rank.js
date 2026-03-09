@@ -31,6 +31,7 @@ export default async function handler(req, res) {
     // 2. Scraping League of Graphs
     let euwRank = null;
     let worldRank = null;
+    let debugInfo = '';
     try {
       const logUrl = `https://www.leagueofgraphs.com/fr/summoner/champions/jax/euw/3afrit+jax-filou/soloqueue`;
       const logRes = await fetch(logUrl, {
@@ -44,26 +45,26 @@ export default async function handler(req, res) {
       if (logRes.ok) {
         const html = await logRes.text();
 
-        // Cherche le bloc qui contient "Rang (EUW)" et extrait le #number juste avant
-        const euwBlockMatch = html.match(/class="number-medium solo-number"[^>]*>\s*#([\d,\s]+)[\s\S]{0,300}?Rang \(EUW\)/);
-        if (euwBlockMatch) {
-          euwRank = euwBlockMatch[1].replace(/[,\s]/g, '');
+        // Extrait tous les blocs "number-medium solo-number" avec leur contexte suivant
+        const blockRegex = /class="number-medium solo-number"[\s\S]{0,20}?#([\d,]+)[\s\S]{0,500}?<div class="title">([\s\S]{0,100}?)<\/div>/g;
+        let match;
+        const blocks = [];
+        while ((match = blockRegex.exec(html)) !== null) {
+          blocks.push({ number: match[1].replace(/,/g, ''), label: match[2].trim() });
         }
 
-        // Cherche le bloc qui contient "Rang (Mondial)" ou "World Rank"
-        const worldBlockMatch = html.match(/class="number-medium solo-number"[^>]*>\s*#([\d,\s]+)[\s\S]{0,300}?Rang \(Mondial\)/i) ||
-                                html.match(/class="number-medium solo-number"[^>]*>\s*#([\d,\s]+)[\s\S]{0,300}?World Rank/i) ||
-                                html.match(/class="number-medium solo-number"[^>]*>\s*#([\d,\s]+)[\s\S]{0,300}?Mondial/i);
-        if (worldBlockMatch) {
-          worldRank = worldBlockMatch[1].replace(/[,\s]/g, '');
+        debugInfo = JSON.stringify(blocks);
+
+        for (const block of blocks) {
+          if (block.label.includes('EUW')) euwRank = block.number;
+          if (block.label.includes('Mondial') || block.label.includes('World')) worldRank = block.number;
         }
       }
     } catch(e) {
-      euwRank = null;
-      worldRank = null;
+      debugInfo = e.message;
     }
 
-    res.status(200).json({ soloQueue, mastery, euwRank, worldRank });
+    res.status(200).json({ soloQueue, mastery, euwRank, worldRank, debugInfo });
 
   } catch (e) {
     res.status(500).json({ error: e.message });
