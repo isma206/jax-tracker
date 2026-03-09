@@ -59,10 +59,11 @@ export default async function handler(req, res) {
     // 3. Sauvegarde dans Supabase (une seule fois par jour)
     if (SUPABASE_URL && SUPABASE_KEY && soloQueue) {
       try {
-        // Vérifie si on a déjà enregistré aujourd'hui
-        const today = new Date().toISOString().slice(0, 10);
+        // Vérifie si on a déjà enregistré aujourd'hui (heure Paris)
+        const now = new Date();
+        const parisMidnight = new Date(now.toLocaleDateString('fr-FR', { timeZone: 'Europe/Paris' }).split('/').reverse().join('-') + 'T00:00:00+01:00');
         const checkRes = await fetch(
-          `${SUPABASE_URL}/rest/v1/rank_history?recorded_at=gte.${today}T00:00:00Z&select=id&limit=1`,
+          `${SUPABASE_URL}/rest/v1/rank_history?recorded_at=gte.${parisMidnight.toISOString()}&select=id&limit=1`,
           { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } }
         );
         const existing = await checkRes.json();
