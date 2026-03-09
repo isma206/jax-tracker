@@ -30,6 +30,7 @@ export default async function handler(req, res) {
 
     // 2. Scraping League of Graphs
     let euwRank = null;
+    let worldRank = null;
     try {
       const logUrl = `https://www.leagueofgraphs.com/fr/summoner/champions/jax/euw/3afrit+jax-filou/soloqueue`;
       const logRes = await fetch(logUrl, {
@@ -42,17 +43,27 @@ export default async function handler(req, res) {
 
       if (logRes.ok) {
         const html = await logRes.text();
-        // Cherche exactement : class="number-medium solo-number">#2,224
-        const match = html.match(/class="number-medium solo-number"[^>]*>\s*#([\d,\s]+)/);
-        if (match) {
-          euwRank = match[1].replace(/[,\s]/g, '');
+
+        // Cherche le bloc qui contient "Rang (EUW)" et extrait le #number juste avant
+        const euwBlockMatch = html.match(/class="number-medium solo-number"[^>]*>\s*#([\d,\s]+)[\s\S]{0,300}?Rang \(EUW\)/);
+        if (euwBlockMatch) {
+          euwRank = euwBlockMatch[1].replace(/[,\s]/g, '');
+        }
+
+        // Cherche le bloc qui contient "Rang (Mondial)" ou "World Rank"
+        const worldBlockMatch = html.match(/class="number-medium solo-number"[^>]*>\s*#([\d,\s]+)[\s\S]{0,300}?Rang \(Mondial\)/i) ||
+                                html.match(/class="number-medium solo-number"[^>]*>\s*#([\d,\s]+)[\s\S]{0,300}?World Rank/i) ||
+                                html.match(/class="number-medium solo-number"[^>]*>\s*#([\d,\s]+)[\s\S]{0,300}?Mondial/i);
+        if (worldBlockMatch) {
+          worldRank = worldBlockMatch[1].replace(/[,\s]/g, '');
         }
       }
     } catch(e) {
       euwRank = null;
+      worldRank = null;
     }
 
-    res.status(200).json({ soloQueue, mastery, euwRank });
+    res.status(200).json({ soloQueue, mastery, euwRank, worldRank });
 
   } catch (e) {
     res.status(500).json({ error: e.message });
