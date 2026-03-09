@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>3afrit jax — Jax Tracker</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
   :root {
@@ -158,6 +159,17 @@
     </div>
   </div>
 
+  
+  <div id="chartCard" style="display:none;background:var(--surface);border:1px solid rgba(200,155,60,0.15);border-radius:4px;overflow:hidden;margin-top:16px;animation:fadeUp 0.8s 0.6s ease both">
+    <div style="padding:20px 24px 10px;border-bottom:1px solid rgba(200,155,60,0.08);display:flex;justify-content:space-between;align-items:center">
+      <div style="font-family:'Cinzel',serif;font-size:13px;color:var(--gold);letter-spacing:2px">PROGRESSION EUW</div>
+      <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--text)">30 derniers jours</div>
+    </div>
+    <div style="padding:16px 16px 8px">
+      <canvas id="rankChart" height="120"></canvas>
+    </div>
+  </div>
+
   <button class="refresh-btn" id="refreshBtn" onclick="fetchData()" style="display:none">↻ Actualiser</button>
   <div class="footer">Riot Games API · Not affiliated with Riot Games</div>
 </div>
@@ -195,7 +207,7 @@ async function fetchData() {
   }
 }
 
-async function render({ soloQueue, mastery, euwRank, worldRank }) {
+async function render({ soloQueue, mastery, euwRank, worldRank, history }) {
   document.getElementById('loadingMsg').style.display = 'none';
 
   const patchRes = await fetch('https://ddragon.leagueoflegends.com/api/versions.json');
@@ -238,6 +250,64 @@ async function render({ soloQueue, mastery, euwRank, worldRank }) {
     document.getElementById('statWorldRank').textContent = '#' + parseInt(worldRank).toLocaleString('fr-FR');
   } else {
     document.getElementById('statWorldRank').textContent = 'N/A';
+  }
+
+
+  // Graphique progression
+  if (history && history.length > 1) {
+    document.getElementById('chartCard').style.display = 'block';
+    const labels = history.map(h => {
+      const d = new Date(h.recorded_at);
+      return d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' });
+    });
+    const euwData = history.map(h => h.euw_rank);
+
+    const ctx = document.getElementById('rankChart').getContext('2d');
+    if (window._rankChart) window._rankChart.destroy();
+    window._rankChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [{
+          label: 'Rang EUW',
+          data: euwData,
+          borderColor: '#C89B3C',
+          backgroundColor: 'rgba(200,155,60,0.08)',
+          borderWidth: 2,
+          pointBackgroundColor: '#C89B3C',
+          pointRadius: 4,
+          tension: 0.3,
+          fill: true,
+        }]
+      },
+      options: {
+        responsive: true,
+        scales: {
+          y: {
+            reverse: true,
+            grid: { color: 'rgba(255,255,255,0.04)' },
+            ticks: { color: '#A0956E', font: { family: 'Rajdhani' } }
+          },
+          x: {
+            grid: { color: 'rgba(255,255,255,0.04)' },
+            ticks: { color: '#A0956E', font: { family: 'Rajdhani' } }
+          }
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: '#0D0D18',
+            borderColor: 'rgba(200,155,60,0.3)',
+            borderWidth: 1,
+            titleColor: '#F0E6D3',
+            bodyColor: '#C89B3C',
+            callbacks: {
+              label: ctx => `#${ctx.parsed.y.toLocaleString('fr-FR')}`
+            }
+          }
+        }
+      }
+    });
   }
 
   document.getElementById('mainCard').style.display = 'block';
