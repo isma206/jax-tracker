@@ -138,7 +138,7 @@
       <div class="stat-cell"><div class="stat-value red" id="statLosses">—</div><div class="stat-label">Défaites</div></div>
       <div class="stat-cell"><div class="stat-value gold" id="statWR">—</div><div class="stat-label">Winrate</div></div>
     </div>
-    <div class="mastery-section">
+    <div style="text-align:center;padding:20px;border-top:1px solid rgba(200,155,60,0.08);background:rgba(200,155,60,0.03)"><div style="font-size:11px;letter-spacing:4px;text-transform:uppercase;color:var(--gold-dark);margin-bottom:6px">Classement EUW sur Jax</div><div style="font-family:Cinzel,serif;font-size:32px;font-weight:900;color:var(--gold);text-shadow:0 0 20px rgba(200,155,60,0.4)" id="statEuwRank">—</div><div style="font-size:11px;color:var(--text);margin-top:4px;letter-spacing:2px" id="statEuwSource"></div></div><div class="mastery-section">
       <div>
         <div class="mastery-label">Maîtrise sur Jax</div>
         <div class="mastery-points" id="masteryPoints">— pts</div>
@@ -183,7 +183,7 @@ async function fetchData() {
   }
 }
 
-async function render({ soloQueue, mastery }) {
+async function render({ soloQueue, mastery, euwRank }) {
   document.getElementById('loadingMsg').style.display = 'none';
 
   const patchRes = await fetch('https://ddragon.leagueoflegends.com/api/versions.json');
@@ -214,6 +214,15 @@ async function render({ soloQueue, mastery }) {
     setTimeout(() => { document.getElementById('lpBar').style.width = `${Math.min(lp,100)}%`; }, 100);
   } else {
     document.getElementById('rankTier').textContent = 'UNRANKED';
+  }
+
+  // EUW rank from scraping
+  if (euwRank) {
+    document.getElementById('statEuwRank').textContent = '#' + parseInt(euwRank).toLocaleString('fr-FR');
+    document.getElementById('statEuwSource').textContent = 'source : leagueofgraphs.com';
+  } else {
+    document.getElementById('statEuwRank').textContent = 'N/A';
+    document.getElementById('statEuwSource').textContent = 'données non disponibles';
   }
 
   document.getElementById('mainCard').style.display = 'block';
